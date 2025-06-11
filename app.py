@@ -166,9 +166,9 @@ def load_css():
         overflow: visible;
         display: flex;
         flex-direction: column;
-        height: 600px;
-        min-height: 600px;
-        max-height: 600px;
+        height: 500px;
+        min-height: 500px;
+        max-height: 500px;
         position: relative;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
@@ -837,9 +837,9 @@ def load_css():
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        height: 600px;
-        min-height: 600px;
-        max-height: 600px;
+        height: 500px;
+        min-height: 500px;
+        max-height: 500px;
         position: relative;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
@@ -908,9 +908,9 @@ def load_css():
         display: flex;
         flex-direction: column;
         position: relative;
-        height: 600px;
-        min-height: 600px;
-        max-height: 600px;
+        height: 500px;
+        min-height: 500px;
+        max-height: 500px;
         overflow: hidden;
     }
     
@@ -1325,7 +1325,7 @@ def load_css():
     """, unsafe_allow_html=True)
 
 def fetch_news_data() -> List[Dict[str, Any]]:
-    """Fetch news data from the API without caching."""
+    """Fetch news data from the AWS API."""
     try:
         response = requests.get("https://349z5cfhwi.execute-api.us-west-2.amazonaws.com/default/news_feed", timeout=10)
         response.raise_for_status()
@@ -1343,16 +1343,21 @@ def fetch_news_data() -> List[Dict[str, Any]]:
         st.error(f"Error fetching data: {str(e)}")
         return []
 
-def fetch_article_detail() -> Dict[str, Any]:
-    """Fetch detailed article data from the fixed detail API for all articles."""
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def fetch_article_detail(article_id: int) -> Dict[str, Any]:
+    """Fetch detailed article data from AWS Lambda API with article ID."""
     try:
-        response = requests.get("https://api.npoint.io/d94fa493a4bcd7394480", timeout=10)
+        url = f"https://a5tqri5kyd.execute-api.us-west-2.amazonaws.com/default/news_detail?id={article_id}"
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()
         
-        # Extract story from the API response
-        if isinstance(data, dict) and 'story' in data:
-            return data['story']
+        # Extract the article data from the nested response structure
+        if isinstance(data, dict) and 'data' in data:
+            return data['data']
+        elif isinstance(data, dict):
+            # If the response doesn't have 'data' field, return as is (fallback)
+            return data
         else:
             st.error("Unexpected detail API response format")
             return {}
@@ -1418,8 +1423,13 @@ def render_article_detail(article_data: Dict[str, Any]) -> None:
         short_desc = re.sub(r'<[^<]+?>', '', short_desc)                        # Remove remaining tags
         short_desc = ' '.join(short_desc.split())                               # Clean whitespace
         
-        st.markdown("### 📝 Summary")
-        st.info(short_desc)
+        # Check if the content is an error message and provide better fallback
+        if short_desc.lower().strip() in ['error processing content.', 'error processing content', 'no description available.', 'no description available']:
+            st.markdown("### 📝 Summary")
+            st.info("📰 This is a breaking news story. Full details are being updated. Please check back soon for more information.")
+        else:
+            st.markdown("### 📝 Summary")
+            st.info(short_desc)
     
     # Add advertisement in detail view
     st.markdown("---")
@@ -1429,9 +1439,8 @@ def render_article_detail(article_data: Dict[str, Any]) -> None:
     st.markdown("---")
     
     # Full article content
-    if article_data.get('long_description'):
-        long_desc = article_data['long_description']
-        
+    long_desc = article_data.get('long_description', '')
+    if long_desc:
         # Clean up and preserve basic HTML formatting
         import re
         # Keep basic formatting tags and convert to markdown-friendly format
@@ -1446,7 +1455,15 @@ def render_article_detail(article_data: Dict[str, Any]) -> None:
         long_desc = ' '.join(long_desc.split())                               # Clean whitespace
         
         st.markdown("### 📄 Full Article")
-        st.markdown(long_desc)
+        
+        # Check if the content is an error message and provide better fallback
+        if long_desc.lower().strip() in ['error processing content.', 'error processing content', 'no description available.', 'no description available']:
+            st.info("📰 This article is currently being processed. The full content will be available shortly. Please check back soon or visit the original source.")
+        else:
+            st.markdown(long_desc)
+    else:
+        st.markdown("### 📄 Full Article")
+        st.info("Full article content is not available. Please check the original source for more details.")
     
     # Original link
     if article_data.get('original_link'):
@@ -1551,10 +1568,10 @@ def render_ad_card(ad_position: str) -> None:
     ad_html = f"""
     <div class="ad-card">
         <div class="ad-label">Advertisement</div>
-        <div class="ad-content" style="padding: 0; height: 600px;">
+        <div class="ad-content" style="padding: 0; height: 500px;">
             <img src="{ad_data['image']}" alt="Advertisement" 
-                 style="width: 100%; height: 600px; object-fit: cover; border-radius: 0 0 24px 24px;"
-                 onerror="this.src='https://via.placeholder.com/400x600/e74c3c/ffffff?text=Premium+Ad'">
+                 style="width: 100%; height: 500px; object-fit: cover; border-radius: 0 0 24px 24px;"
+                 onerror="this.src='https://via.placeholder.com/400x500/e74c3c/ffffff?text=Premium+Ad'">
             <div style="position: absolute; bottom: 20px; left: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 12px; text-align: center; backdrop-filter: blur(10px);">
                 <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">{ad_data['title']}</h3>
                 <button style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; border: none; padding: 10px 20px; border-radius: 25px; font-size: 0.85rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(231,76,60,0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(231,76,60,0.4)'" onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='0 4px 15px rgba(231,76,60,0.3)'">{ad_data['button']} →</button>
@@ -1580,17 +1597,12 @@ def render_news_card(news_item: Dict[str, Any], col) -> None:
         if short_description:
             short_description = re.sub('<[^<]+?>', '', short_description)
             short_description = ' '.join(short_description.split())
-        
-        # Clean up the long description (remove HTML tags) 
-        long_description = news_item.get('long_description', '')
-        if long_description:
-            long_description = re.sub('<[^<]+?>', '', long_description)
-            long_description = ' '.join(long_description.split())
-        
-        # Use long description if available, otherwise short description
-        full_description = long_description if long_description else short_description
-        if not full_description:
-            full_description = 'No description available.'
+            
+            # Check if the content is an error message and provide better fallback
+            if short_description.lower().strip() in ['error processing content.', 'error processing content', 'no description available.', 'no description available']:
+                short_description = 'Breaking news story - Full details coming soon.'
+        else:
+            short_description = 'No description available.'
         
         # Format published date
         published_date = news_item.get('published_date', '')
@@ -1660,15 +1672,14 @@ def render_news_card(news_item: Dict[str, Any], col) -> None:
                         <h3 class="card-title">{news_item.get('title', 'No Title')}</h3>
                     </div>
                 </div>
-                {f'<div class="card-short-desc"><strong>Summary:</strong> {short_description}</div>' if short_description else ''}
-                <p class="card-description">{full_description}</p>
+                {f'<div class="card-short-desc"><strong>Summary:</strong> {short_description}</div>' if short_description else '<div class="card-short-desc"><strong>Summary:</strong> No description available.</div>'}
                 <div class="card-meta">
                     <span class="card-source">{news_item.get('source', 'Unknown')}</span>
                     {f'<span class="card-date">📅 {formatted_date}</span>' if formatted_date else ''}
                     <span class="card-verification {news_item.get('verification_status', 'unknown').lower()}">{get_verification_icon(news_item.get('verification_status', 'unknown'))} {news_item.get('verification_status', 'Unknown').title()}</span>
                 </div>
                 <div class="card-button-wrapper">
-                    <a href="?showdetail=1" style="text-decoration: none; color: inherit;">
+                    <a href="?id={article_id}" style="text-decoration: none; color: inherit;">
                         <div class="card-action-box">
                             <div class="action-icon">📖</div>
                             <div class="action-text">Read More</div>
@@ -1965,13 +1976,23 @@ def main():
         st.session_state.selected_article_id = None
     
     # Check URL parameter for detail page (only if not already showing detail)
-    if 'showdetail' in st.query_params and st.session_state.selected_article_id is None:
-        st.session_state.selected_article_id = 1  # Any ID works since we use same content
+    if 'id' in st.query_params and st.session_state.selected_article_id is None:
+        # Get the article ID from URL parameters
+        article_id = st.query_params.get('id', None)
+        if article_id:
+            try:
+                st.session_state.selected_article_id = int(article_id)
+            except (ValueError, TypeError):
+                st.error("Invalid article ID in URL")
+                st.session_state.selected_article_id = None
+        else:
+            st.error("Article ID is required for detail view")
+            st.session_state.selected_article_id = None
     
     # Check if we should show article detail
     if st.session_state.selected_article_id is not None:
         with st.spinner("Loading article details..."):
-            article_detail = fetch_article_detail()
+            article_detail = fetch_article_detail(st.session_state.selected_article_id)
         
         if article_detail:
             render_article_detail(article_detail)
